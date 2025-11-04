@@ -14,12 +14,13 @@ float dist(float x1, float y1, float x2, float y2) {
     return std::sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
 }
 
-const int screenWidth = 1280;
-const int screenHeight = 720;
-const float gravity = 15.0f;
-const float particleSeperation = 50.0f;
-const float repelStrength = 35.0f; // Adjusted for velocity forces
+const int screenWidth = 1920;
+const int screenHeight = 1080;
+const float gravity = 150.0f;
+const float particleSeperation = 150.0f;
+const float repelStrength = 50.0f; // Adjusted for velocity forces
 const float G = 100.0f;
+const int particleNum = 10000;
 
 Color getColorForMass(int mass) {
     switch (mass) {
@@ -41,7 +42,7 @@ struct Particle {
     float xVel = 0.0f;
     float yVel = 0.0f;
 
-    float size = 1.0f;
+    float size = 4.0f;
     float mass = 1.0f;
 
     Color color;
@@ -79,11 +80,11 @@ struct Particle {
 
         // Bottom wall
         if (yPos > screenHeight - edgeThreshold) {
-            //yPos = 2;
-            //yVel *= 0.95;
-            float dist = std::max(screenHeight - yPos, 1.0f);
+            yPos = 2;
+            //yVel *= 0.90;
+            /*float dist = std::max(screenHeight - yPos, 1.0f);
             float force = edgeRepelStrength / (dist * dist);
-            yVel -= force * dt;
+            yVel -= force * dt;*/
         }
 
         // Apply gravity
@@ -191,7 +192,6 @@ int main(void) {
     InitWindow(screenWidth, screenHeight, "Fluid Sim");
     SetTargetFPS(60);
 
-    const int particleNum = 1000;
     Particle particles[particleNum];
 
     // Initialize particles
@@ -208,10 +208,19 @@ int main(void) {
 
     int resolutionLoc = GetShaderLocation(shader, "u_resolution");
     int pointCountLoc = GetShaderLocation(shader, "u_pointCount");
-    int pointsLoc = GetShaderLocation(shader, "u_points");
+    int texLoc = GetShaderLocation(shader, "u_particleTex");
+    //int pointsLoc = GetShaderLocation(shader, "u_points");
 
     Vector2 res = {screenWidth, screenHeight};
     SetShaderValue(shader, resolutionLoc, &res, SHADER_UNIFORM_VEC2);
+
+    std::vector<Vector3> pixelData(particleNum); // pixel data for shader
+    
+    // texture to hold point data
+    Image img = GenImageColor(particleNum, 1, BLACK);
+    ImageFormat(&img, PIXELFORMAT_UNCOMPRESSED_R32G32B32);
+    Texture2D particleDataTex = LoadTextureFromImage(img);
+    UnloadImage(img);
 
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
@@ -249,7 +258,7 @@ int main(void) {
                     float ny = dy / distance;
 
                     // Gravitational force magnitude
-                    /*
+                    
                     float force = G * (particles[i].mass * other->mass) / (distance * distance);
 
                     // Apply to velocities (i attracts j and vice versa)
@@ -257,8 +266,9 @@ int main(void) {
                     particles[i].yVel += ny * force * dt;
                     other->xVel -= nx * force * dt;
                     other->yVel -= ny * force * dt;
-                    */
+                    
                     // Soft repulsion (velocity-based) 
+                    
                         if (distance < particleSeperation) { 
                             float strength = (repelStrength / particles[i].mass) / (distance + 1.0f); 
                             particles[i].xVel -= nx * strength * dt; 
@@ -314,18 +324,18 @@ int main(void) {
             }
         }
 
-        Vector3 pointLocations[particleNum];
+
 
         // Update positions & draw
         for (int i = 0; i < particleNum; i++) {
             particles[i].update(dt);
-            pointLocations[i].x = particles[i].xPos;
-            pointLocations[i].y = particles[i].yPos;
-            pointLocations[i].z = particles[i].size;
+            pixelData[i] = {particles[i].xPos, particles[i].yPos, particles[i].size};
         }
 
+        UpdateTexture(particleDataTex, pixelData.data());
+
         SetShaderValue(shader, pointCountLoc, &particleNum, SHADER_UNIFORM_INT);
-        SetShaderValueV(shader, pointsLoc, pointLocations, SHADER_UNIFORM_VEC3, particleNum);
+        SetShaderValueTexture(shader, texLoc, particleDataTex);
 
         BeginShaderMode(shader);
             DrawRectangle(0, 0, screenWidth, screenHeight, WHITE);
@@ -334,6 +344,7 @@ int main(void) {
         EndDrawing();
     }
 
+    UnloadTexture(particleDataTex);
     UnloadShader(shader);
     CloseWindow();
 }

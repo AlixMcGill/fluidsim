@@ -1,39 +1,32 @@
 #version 330
 
-uniform vec2 u_resolution;
-
-// Struct array can't be used directly in raylib uniform uploads,
-// So we send each point as vec3: (x, y, radius)
-uniform vec3 u_points[1024];
+uniform sampler2D u_particleTex;
 uniform int u_pointCount;
+uniform vec2 u_resolution;
 
 out vec4 fragColor;
 
-void main()
-{
-    vec2 uv = gl_FragCoord.xy;
+void main() {
+    vec2 fragCoord = gl_FragCoord.xy;
+    fragCoord.y = u_resolution.y - fragCoord.y; // flip Y
 
-    float minDist = 99999.0;
-    int index = -1;
+    float density = 0.0;
 
-    for (int i = 0; i < u_pointCount; i++)
-    {
-        vec2 p = u_points[i].xy;
-        float r = u_points[i].z;
+    // iterate over all particles
+    for (int i = 0; i < u_pointCount; i++) {
+        float u = (float(i) + 0.5) / float(u_pointCount);
+        vec3 particle = texture(u_particleTex, vec2(u, 0.5)).xyz;
 
-        float dist = length(uv - p) - r;
-
-        if (dist < minDist) {
-            minDist = dist;
-            index = i;
-        }
+        float dist = length(fragCoord - particle.xy);
+        density += exp(-dist*dist / (particle.z * 40.0)); // gaussian contribution
     }
 
-    // Signed distance threshold
-    if (minDist <= 0.0) {
-        fragColor = vec4(1.0, 0.6, 0.1, 1.0); // Orange circle
-    } else {
-        fragColor = vec4(0.0, 0.0, 0.0, 0.0); // Transparent background
-    }
+    // optional: scale density for brightness
+    density = 1.0 - exp(-density * 0.3); // soft saturation
+
+    // color mapping: e.g., blue low, yellow high
+    vec3 color = mix(vec3(0.1,0.1,0.1), vec3(0.6,0.6,0.7), density);
+
+    fragColor = vec4(color, 1.0);
 }
 
