@@ -16,9 +16,9 @@ float dist(float x1, float y1, float x2, float y2) {
 
 const int screenWidth = 1280;
 const int screenHeight = 720;
-const float gravity = 0.0f;
+const float gravity = 15.0f;
 const float particleSeperation = 50.0f;
-const float repelStrength = 12.0f; // Adjusted for velocity forces
+const float repelStrength = 35.0f; // Adjusted for velocity forces
 const float G = 100.0f;
 
 Color getColorForMass(int mass) {
@@ -41,7 +41,7 @@ struct Particle {
     float xVel = 0.0f;
     float yVel = 0.0f;
 
-    float size = 1.0f;
+    float size = 3.0f;
     float mass = 1.0f;
 
     void draw() {
@@ -52,7 +52,7 @@ struct Particle {
     void update(float dt) {
         // --- Edge repulsion parameters ---
         float edgeRepelStrength = 800.0f;   // how strong the wall pushes
-        float edgeThreshold = 200.0f;       // how close before repelling starts
+        float edgeThreshold = 5.0f;       // how close before repelling starts
 
         // Left wall
         if (xPos < edgeThreshold) {
@@ -77,6 +77,8 @@ struct Particle {
 
         // Bottom wall
         if (yPos > screenHeight - edgeThreshold) {
+            //yPos = 2;
+            //yVel *= 0.95;
             float dist = std::max(screenHeight - yPos, 1.0f);
             float force = edgeRepelStrength / (dist * dist);
             yVel -= force * dt;
@@ -93,7 +95,7 @@ struct Particle {
         xVel *= damping;
         yVel *= damping;*/
 
-        float maxVelocity = 50.0f;
+        float maxVelocity = 150.0f;
         // clamping max velocity
         if (xVel > maxVelocity)       xVel = maxVelocity;
         else if (xVel < -maxVelocity) xVel = -maxVelocity;
@@ -187,7 +189,7 @@ int main(void) {
     InitWindow(screenWidth, screenHeight, "Fluid Sim");
     SetTargetFPS(60);
 
-    const int particleNum = 1350;
+    const int particleNum = 8000;
     Particle particles[particleNum];
 
     // Initialize particles
@@ -196,7 +198,7 @@ int main(void) {
         particles[i].yPos = randRange(0, screenHeight);
         
         if (i < 0) particles[i].mass = 1;
-        else particles[i].mass = randRange(1, 8);
+        else particles[i].mass = randRange(1, 1);
     }
 
     while (!WindowShouldClose()) {
@@ -222,9 +224,11 @@ int main(void) {
             qt.query(particles[i].xPos, particles[i].yPos, 50.0f, neighbors);
 
             // Particle-particle repulsion
-            for (int j = i + 1; j < particleNum; j++) {
-                float dx = particles[j].xPos - particles[i].xPos;
-                float dy = particles[j].yPos - particles[i].yPos;
+            for (Particle* other : neighbors) {
+                if (&particles[i] == other) continue;
+
+                float dx = other->xPos - particles[i].xPos;
+                float dy = other->yPos - particles[i].yPos;
                 float distance = std::sqrt(dx * dx + dy * dy);
 
                 if (distance > 0.001f) {
@@ -232,39 +236,40 @@ int main(void) {
                     float ny = dy / distance;
 
                     // Gravitational force magnitude
-                    float force = G * (particles[i].mass * particles[j].mass) / (distance * distance);
+                    /*
+                    float force = G * (particles[i].mass * other->mass) / (distance * distance);
 
                     // Apply to velocities (i attracts j and vice versa)
                     particles[i].xVel += nx * force * dt;
                     particles[i].yVel += ny * force * dt;
-                    particles[j].xVel -= nx * force * dt;
-                    particles[j].yVel -= ny * force * dt;
-
+                    other->xVel -= nx * force * dt;
+                    other->yVel -= ny * force * dt;
+                    */
                     // Soft repulsion (velocity-based) 
                         if (distance < particleSeperation) { 
                             float strength = (repelStrength / particles[i].mass) / (distance + 1.0f); 
                             particles[i].xVel -= nx * strength * dt; 
                             particles[i].yVel -= ny * strength * dt; 
-                            particles[j].xVel += nx * strength * dt; 
-                            particles[j].yVel += ny * strength * dt; 
+                            other->xVel += nx * strength * dt; 
+                            other->yVel += ny * strength * dt; 
                         }
 
                     // Optional: keep hard collision for particle overlap
-                    float combinedSize = particles[i].size + particles[j].size;
+                    float combinedSize = particles[i].size + other->size;
                     if (distance < combinedSize) {
                         float overlap = 0.5f * (combinedSize - distance);
                         particles[i].xPos -= nx * overlap;
                         particles[i].yPos -= ny * overlap;
-                        particles[j].xPos += nx * overlap;
-                        particles[j].yPos += ny * overlap;
+                        other->xPos += nx * overlap;
+                        other->yPos += ny * overlap;
 
                         // Elastic bounce
                         float tempXVel = particles[i].xVel * 0.95;
                         float tempYVel = particles[i].yVel * 0.95;
-                        particles[i].xVel = particles[j].xVel;
-                        particles[i].yVel = particles[j].yVel;
-                        particles[j].xVel = tempXVel;
-                        particles[j].yVel = tempYVel;
+                        particles[i].xVel = other->xVel;
+                        particles[i].yVel = other->yVel;
+                        other->xVel = tempXVel;
+                        other->yVel = tempYVel;
                     }
                 }
             }
