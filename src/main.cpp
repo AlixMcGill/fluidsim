@@ -3,6 +3,8 @@
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <vector>
+#include <iostream>
 
 int randRange(int min, int max) {
     return (rand() % (max - min + 1) + min);
@@ -14,9 +16,10 @@ float dist(float x1, float y1, float x2, float y2) {
 
 const int screenWidth = 1280;
 const int screenHeight = 720;
-const float gravity = 00.0f;
-const float particleSeperation = 10000.0f;
-const float repelStrength = 10.0f; // Adjusted for velocity forces
+const float gravity = 0.0f;
+const float particleSeperation = 50.0f;
+const float repelStrength = 12.0f; // Adjusted for velocity forces
+const float G = 100.0f;
 
 Color getColorForMass(int mass) {
     switch (mass) {
@@ -25,6 +28,8 @@ Color getColorForMass(int mass) {
         case 3: return YELLOW;
         case 4: return ORANGE;
         case 5: return RED;
+        case 6: return PURPLE;
+        case 7: return PINK;
         default: return WHITE;
     }
 }
@@ -36,7 +41,7 @@ struct Particle {
     float xVel = 0.0f;
     float yVel = 0.0f;
 
-    float size = 2.0f;
+    float size = 1.0f;
     float mass = 1.0f;
 
     void draw() {
@@ -80,14 +85,99 @@ struct Particle {
         // Apply gravity
         yVel += gravity * dt;
 
+        xVel += randRange(-1, 1) / mass;
+        yVel += randRange(-1, 1) / mass;
+
         // Apply damping for stability
-        float damping = 0.99f;
+        /*float damping = 0.99f;
         xVel *= damping;
-        yVel *= damping;
+        yVel *= damping;*/
+
+        float maxVelocity = 50.0f;
+        // clamping max velocity
+        if (xVel > maxVelocity)       xVel = maxVelocity;
+        else if (xVel < -maxVelocity) xVel = -maxVelocity;
+        if (yVel > maxVelocity)       yVel = maxVelocity;
+        else if (yVel < -maxVelocity) yVel = -maxVelocity;
 
         // Update position using velocity
         xPos += xVel * dt;
         yPos += yVel * dt;
+    }
+};
+
+struct Quadtree {
+    float x, y, width, height; // Bounds of the node
+    int capacity; // max particles
+    std::vector<Particle*> quadparts;
+    bool divided = false;
+    Quadtree* nw = nullptr;
+    Quadtree* ne = nullptr;
+    Quadtree* sw = nullptr;
+    Quadtree* se = nullptr;
+
+    Quadtree(float _x, float _y, float _w, float _h, int _capacity)
+        : x(_x), y(_y), width(_w), height(_h), capacity(_capacity) {
+
+    }
+
+    ~Quadtree() {
+        delete nw; delete ne; delete sw; delete se;
+    }
+
+    bool insert(Particle* p) {
+        if (p->xPos < x || p->xPos > x + width || p->yPos < y || p->yPos > y + height)
+            return false;
+
+        if (quadparts.size() < capacity) {
+            quadparts.push_back(p);
+            return true;
+        }
+
+        if (!divided) subdivide();
+
+        if (nw->insert(p)) return true;
+        if (ne->insert(p)) return true;
+        if (sw->insert(p)) return true;
+        if (se->insert(p)) return true;
+
+        return false;
+    }
+
+    void subdivide() {
+        float hw = width / 2;
+        float hh = height / 2;
+
+        nw = new Quadtree(x, y, hw, hh, capacity);
+        ne = new Quadtree(x + hw, y, hw, hh, capacity);
+        sw = new Quadtree(x, y + hh, hw, hh, capacity);
+        se = new Quadtree(x + hw, y + hh, hw, hh, capacity);
+
+        divided = true;
+    }
+
+    // qx current particle x position
+    // qy current particle y position
+    // qr query radius
+    // found, vector of found particles in query radius
+    void query(float qx, float qy, float qr, std::vector<Particle*>& found) {
+        if (qx + qr < x || qx - qr > x + width || qy + qr < y || qy - qr > y + height)
+            return;
+
+        for (Particle* p : quadparts) {
+            float dx = p->xPos - qx;
+            float dy = p->yPos - qy;
+            if (dx*dx + dy*dy <= qr*qr) {
+                found.push_back(p);
+            }
+        }
+
+        if (!divided) return;
+
+        nw->query(qx,  qy,  qr, found);
+        ne->query(qx,  qy,  qr, found);
+        sw->query(qx,  qy,  qr, found);
+        se->query(qx,  qy,  qr, found);
     }
 };
 
@@ -97,17 +187,16 @@ int main(void) {
     InitWindow(screenWidth, screenHeight, "Fluid Sim");
     SetTargetFPS(60);
 
-    const int particleNum = 1500;
+    const int particleNum = 1350;
     Particle particles[particleNum];
 
     // Initialize particles
     for (int i = 0; i < particleNum; i++) {
         particles[i].xPos = randRange(0, screenWidth);
         particles[i].yPos = randRange(0, screenHeight);
-        particles[i].size = 2.0f; //+ particles[i].mass; // optional size by mass
         
         if (i < 0) particles[i].mass = 1;
-        else particles[i].mass = randRange(1, 5);
+        else particles[i].mass = randRange(1, 8);
     }
 
     while (!WindowShouldClose()) {
@@ -118,8 +207,19 @@ int main(void) {
         ClearBackground(BLACK);
         DrawFPS(10, 10);
 
-        // --- Particle interactions ---
+        // --- Init quadtree ---
+        
+        Quadtree qt(0,0, screenWidth, screenHeight, 8);
+
         for (int i = 0; i < particleNum; i++) {
+            qt.insert(&particles[i]);
+        }
+
+        // --- Particle interactions ---
+
+        for (int i = 0; i < particleNum; i++) {
+            std::vector<Particle*> neighbors;
+            qt.query(particles[i].xPos, particles[i].yPos, 50.0f, neighbors);
 
             // Particle-particle repulsion
             for (int j = i + 1; j < particleNum; j++) {
@@ -131,16 +231,25 @@ int main(void) {
                     float nx = dx / distance;
                     float ny = dy / distance;
 
-                    // Soft repulsion (velocity-based)
-                    if (distance < particleSeperation) {
-                        float strength = (repelStrength / particles[i].mass) / (distance + 1.0f);
-                        particles[i].xVel += nx * strength * dt;
-                        particles[i].yVel += ny * strength * dt;
-                        particles[j].xVel -= nx * strength * dt;
-                        particles[j].yVel -= ny * strength * dt;
-                    }
+                    // Gravitational force magnitude
+                    float force = G * (particles[i].mass * particles[j].mass) / (distance * distance);
 
-                    // Hard collision
+                    // Apply to velocities (i attracts j and vice versa)
+                    particles[i].xVel += nx * force * dt;
+                    particles[i].yVel += ny * force * dt;
+                    particles[j].xVel -= nx * force * dt;
+                    particles[j].yVel -= ny * force * dt;
+
+                    // Soft repulsion (velocity-based) 
+                        if (distance < particleSeperation) { 
+                            float strength = (repelStrength / particles[i].mass) / (distance + 1.0f); 
+                            particles[i].xVel -= nx * strength * dt; 
+                            particles[i].yVel -= ny * strength * dt; 
+                            particles[j].xVel += nx * strength * dt; 
+                            particles[j].yVel += ny * strength * dt; 
+                        }
+
+                    // Optional: keep hard collision for particle overlap
                     float combinedSize = particles[i].size + particles[j].size;
                     if (distance < combinedSize) {
                         float overlap = 0.5f * (combinedSize - distance);
@@ -149,9 +258,9 @@ int main(void) {
                         particles[j].xPos += nx * overlap;
                         particles[j].yPos += ny * overlap;
 
-                        // Optional: basic elastic bounce
-                        float tempXVel = particles[i].xVel;
-                        float tempYVel = particles[i].yVel;
+                        // Elastic bounce
+                        float tempXVel = particles[i].xVel * 0.95;
+                        float tempYVel = particles[i].yVel * 0.95;
                         particles[i].xVel = particles[j].xVel;
                         particles[i].yVel = particles[j].yVel;
                         particles[j].xVel = tempXVel;
