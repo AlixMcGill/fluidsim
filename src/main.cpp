@@ -1,9 +1,9 @@
-
 #include "raylib.h"
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
 #include <vector>
+#include "rlgl.h"
 #include <iostream>
 
 int randRange(int min, int max) {
@@ -41,12 +41,14 @@ struct Particle {
     float xVel = 0.0f;
     float yVel = 0.0f;
 
-    float size = 3.0f;
+    float size = 1.0f;
     float mass = 1.0f;
 
+    Color color;
+
     void draw() {
-        Color c = getColorForMass(mass);
-        DrawCircle(xPos, yPos, size, c);
+        color = getColorForMass(mass);
+        DrawCircle(xPos, yPos, size, color);
     }
 
     void update(float dt) {
@@ -189,7 +191,7 @@ int main(void) {
     InitWindow(screenWidth, screenHeight, "Fluid Sim");
     SetTargetFPS(60);
 
-    const int particleNum = 8000;
+    const int particleNum = 1000;
     Particle particles[particleNum];
 
     // Initialize particles
@@ -200,6 +202,16 @@ int main(void) {
         if (i < 0) particles[i].mass = 1;
         else particles[i].mass = randRange(1, 1);
     }
+
+    // -- Shader stuff
+    Shader shader = LoadShader(NULL, "/home/alix/dev/fluidsim/src/particle.fs");
+
+    int resolutionLoc = GetShaderLocation(shader, "u_resolution");
+    int pointCountLoc = GetShaderLocation(shader, "u_pointCount");
+    int pointsLoc = GetShaderLocation(shader, "u_points");
+
+    Vector2 res = {screenWidth, screenHeight};
+    SetShaderValue(shader, resolutionLoc, &res, SHADER_UNIFORM_VEC2);
 
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
@@ -216,6 +228,7 @@ int main(void) {
         for (int i = 0; i < particleNum; i++) {
             qt.insert(&particles[i]);
         }
+
 
         // --- Particle interactions ---
 
@@ -301,15 +314,27 @@ int main(void) {
             }
         }
 
+        Vector3 pointLocations[particleNum];
+
         // Update positions & draw
         for (int i = 0; i < particleNum; i++) {
             particles[i].update(dt);
-            particles[i].draw();
+            pointLocations[i].x = particles[i].xPos;
+            pointLocations[i].y = particles[i].yPos;
+            pointLocations[i].z = particles[i].size;
         }
+
+        SetShaderValue(shader, pointCountLoc, &particleNum, SHADER_UNIFORM_INT);
+        SetShaderValueV(shader, pointsLoc, pointLocations, SHADER_UNIFORM_VEC3, particleNum);
+
+        BeginShaderMode(shader);
+            DrawRectangle(0, 0, screenWidth, screenHeight, WHITE);
+        EndShaderMode();
 
         EndDrawing();
     }
 
+    UnloadShader(shader);
     CloseWindow();
 }
 
