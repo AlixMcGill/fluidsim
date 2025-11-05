@@ -16,11 +16,11 @@ float dist(float x1, float y1, float x2, float y2) {
 
 const int screenWidth = 1920;
 const int screenHeight = 1080;
-const float gravity = 150.0f;
-const float particleSeperation = 150.0f;
-const float repelStrength = 50.0f; // Adjusted for velocity forces
+const float gravity = -150.0f;
+const float particleSeperation = 5.0f;
+const float repelStrength = 150.0f; // Adjusted for velocity forces
 const float G = 100.0f;
-const int particleNum = 10000;
+const int particleNum = 5000;
 
 Color getColorForMass(int mass) {
     switch (mass) {
@@ -42,7 +42,7 @@ struct Particle {
     float xVel = 0.0f;
     float yVel = 0.0f;
 
-    float size = 4.0f;
+    float size = 0.5f;
     float mass = 1.0f;
 
     Color color;
@@ -58,47 +58,59 @@ struct Particle {
         float edgeThreshold = 5.0f;       // how close before repelling starts
 
         // Left wall
-        if (xPos < edgeThreshold) {
+        if (xPos < 0) {
+            xPos = screenWidth / 2.0f;
+            yPos = screenHeight / 1.2f;
+            /*
             float dist = std::max(xPos, 1.0f);
             float force = edgeRepelStrength / (dist * dist);
-            xVel += force * dt;
+            xVel += force * dt;*/
         }
 
         // Right wall
-        if (xPos > screenWidth - edgeThreshold) {
+        if (xPos > screenWidth) {
+            xPos = screenWidth / 2.0f;
+            yPos = screenHeight / 1.2f;
+            /*
             float dist = std::max(screenWidth - xPos, 1.0f);
             float force = edgeRepelStrength / (dist * dist);
-            xVel -= force * dt;
+            xVel -= force * dt;*/
         }
 
         // Top wall
-        if (yPos < edgeThreshold) {
+        if (yPos < 0) {
+            xPos = screenWidth / 2.0f;
+            yPos = screenHeight / 1.2f;
+            yVel = 0.0;
+            xPos += randRange(-10, 10);
+            /*
             float dist = std::max(yPos, 1.0f);
             float force = edgeRepelStrength / (dist * dist);
-            yVel += force * dt;
+            yVel += force * dt;*/
         }
 
         // Bottom wall
-        if (yPos > screenHeight - edgeThreshold) {
-            yPos = 2;
+        if (yPos > screenHeight) {
+            xPos = screenWidth / 2.0f;
+            yPos = screenHeight / 1.2f;
             //yVel *= 0.90;
-            /*float dist = std::max(screenHeight - yPos, 1.0f);
-            float force = edgeRepelStrength / (dist * dist);
-            yVel -= force * dt;*/
+            //float dist = std::max(screenHeight - yPos, 1.0f);
+            //float force = edgeRepelStrength / (dist * dist);
+            //yVel -= force * dt;
         }
 
         // Apply gravity
         yVel += gravity * dt;
 
-        xVel += randRange(-1, 1) / mass;
-        yVel += randRange(-1, 1) / mass;
+        xVel += randRange(-6, 6) / mass;
+        yVel += randRange(-2, 2) / mass;
 
         // Apply damping for stability
-        /*float damping = 0.99f;
+        float damping = 0.98f;
         xVel *= damping;
-        yVel *= damping;*/
+        yVel *= damping;
 
-        float maxVelocity = 150.0f;
+        float maxVelocity = 500.0f;
         // clamping max velocity
         if (xVel > maxVelocity)       xVel = maxVelocity;
         else if (xVel < -maxVelocity) xVel = -maxVelocity;
@@ -200,7 +212,7 @@ int main(void) {
         particles[i].yPos = randRange(0, screenHeight);
         
         if (i < 0) particles[i].mass = 1;
-        else particles[i].mass = randRange(1, 1);
+        else particles[i].mass = randRange(1, 8);
     }
 
     // -- Shader stuff
@@ -246,7 +258,8 @@ int main(void) {
             qt.query(particles[i].xPos, particles[i].yPos, 50.0f, neighbors);
 
             // Particle-particle repulsion
-            for (Particle* other : neighbors) {
+            
+            for (Particle* other : neighbors) { 
                 if (&particles[i] == other) continue;
 
                 float dx = other->xPos - particles[i].xPos;
@@ -258,7 +271,7 @@ int main(void) {
                     float ny = dy / distance;
 
                     // Gravitational force magnitude
-                    
+                    /*
                     float force = G * (particles[i].mass * other->mass) / (distance * distance);
 
                     // Apply to velocities (i attracts j and vice versa)
@@ -266,7 +279,7 @@ int main(void) {
                     particles[i].yVel += ny * force * dt;
                     other->xVel -= nx * force * dt;
                     other->yVel -= ny * force * dt;
-                    
+                    */ 
                     // Soft repulsion (velocity-based) 
                     
                         if (distance < particleSeperation) { 
@@ -278,6 +291,7 @@ int main(void) {
                         }
 
                     // Optional: keep hard collision for particle overlap
+                    
                     float combinedSize = particles[i].size + other->size;
                     if (distance < combinedSize) {
                         float overlap = 0.5f * (combinedSize - distance);
@@ -300,27 +314,41 @@ int main(void) {
             // Mouse repulsion
             float dxm = particles[i].xPos - mouse.x;
             float dym = particles[i].yPos - mouse.y;
+            float mouseMass = 40;
             float dist = std::sqrt(dxm * dxm + dym * dym);
             float mouseRadius = 50.0f;
 
             if (dist < mouseRadius + particles[i].size && dist > 0.001f) {
-                // Collision normal
-                float nx = dxm / dist;
-                float ny = dym / dist;
+                float force = G * (particles[i].mass * mouseMass) / (dist * dist);
 
-                // Push particle outside the mouse
-                float overlap = (mouseRadius + particles[i].size) - dist;
-                particles[i].xPos += nx * overlap;
-                particles[i].yPos += ny * overlap;
+                // Apply to velocities (i attracts j and vice versa)
+                if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+                    particles[i].xVel -= dxm * force * dt;
+                    particles[i].yVel -= dym * force * dt;
+                }
+                if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+                    particles[i].xVel += dxm * force * dt;
+                    particles[i].yVel += dym * force * dt;
+                }
+                if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
+                    // Collision normal
+                    float nx = dxm / dist;
+                    float ny = dym / dist;
 
-                // Reflect velocity along normal for bounce
-                float dot = particles[i].xVel * nx + particles[i].yVel * ny;
-                particles[i].xVel -= 2 * dot * nx;
-                particles[i].yVel -= 2 * dot * ny;
+                    // Push particle outside the mouse
+                    float overlap = (mouseRadius + particles[i].size) - dist;
+                    particles[i].xPos += nx * overlap;
+                    particles[i].yPos += ny * overlap;
 
-                // Optional damping to reduce jitter
-                particles[i].xVel *= 0.8f;
-                particles[i].yVel *= 0.8f;
+                    // Reflect velocity along normal for bounce
+                    float dot = particles[i].xVel * nx + particles[i].yVel * ny;
+                    particles[i].xVel -= 2 * dot * nx;
+                    particles[i].yVel -= 2 * dot * ny;
+
+                    // Optional damping to reduce jitter
+                    particles[i].xVel *= 0.8f;
+                    particles[i].yVel *= 0.8f;
+                }
             }
         }
 
