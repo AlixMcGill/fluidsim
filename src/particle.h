@@ -11,14 +11,29 @@ struct Particle {
     float xVel = 0.0f;
     float yVel = 0.0f;
 
-    float size = 0.5f;
+    float size = 2.0f;
     float mass = 1.0f;
 
     Color color;
 
     void draw();
 
-    void update(float dt);
+    /*
+     *  This is the shared velocity helper method for all update function,
+     *  helps streamline velocity resolution.
+     */
+    void velocityUpdate(float dt);
+
+    using updateHandler = void(Particle::*)(float dt);
+    updateHandler handler = nullptr; // pointer to current update function required
+
+    void updateSelector(collisionMode mode); // Allows user to change update function in real time
+
+    void update(float dt); // points to current update mode
+    void fireUpdate(float dt); // update function for fire mode
+    void wallUpdate(float dt); // update function for screen wall collision
+    void wrapUpdate(float dt); // update function for screen wrapping
+    void waterUpdate(float dt);
 };
 
 /*

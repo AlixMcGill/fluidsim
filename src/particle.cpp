@@ -1,4 +1,5 @@
 #include "particle.h"
+#include "util/globals.h"
 
 
 /*
@@ -12,29 +13,57 @@ void Particle::draw() {
     DrawCircle(xPos, yPos, size, color);
 }
 
-void Particle::update(float dt) {
-    // --- Edge repulsion parameters ---
-    float edgeRepelStrength = 800.0f;   // how strong the wall pushes
-    float edgeThreshold = 5.0f;       // how close before repelling starts
+void Particle::velocityUpdate(float dt) {
+    // Apply damping for stability
+    float damping = 0.98f;
+    xVel *= damping;
+    yVel *= damping;
 
+    // clamping max velocity
+    if (xVel > maxParticleVel)       xVel = maxParticleVel;
+    else if (xVel < -maxParticleVel) xVel = -maxParticleVel;
+    if (yVel > maxParticleVel)       yVel = maxParticleVel;
+    else if (yVel < -maxParticleVel) yVel = -maxParticleVel;
+
+    // Update position using velocity
+    xPos += xVel * dt;
+    yPos += yVel * dt;
+}
+
+void Particle::updateSelector(collisionMode mode) {
+    switch (mode) {
+        case collisionMode::MODE_A_FIRE_COLL:
+            handler = &Particle::fireUpdate;
+            break;
+        case collisionMode::MODE_B_WALL_COLL:
+            handler = &Particle::wallUpdate;
+            break;
+        case collisionMode::MODE_C_WRAP_COLL:
+            handler = &Particle::wrapUpdate;
+            break;
+        case collisionMode::MODE_D_WATER_COLL:
+            handler = &Particle::waterUpdate;
+            break;
+        default:
+            handler = &Particle::wallUpdate;
+            break;
+    }
+}
+
+void Particle::update(float dt) {
+    (this->*handler)(dt);
+}
+
+void Particle::fireUpdate(float dt) {
     // Left wall
     if (xPos < 0) {
         xPos = screenWidth / 2.0f;
         yPos = screenHeight / 1.2f;
-        /*
-        float dist = std::max(xPos, 1.0f);
-        float force = edgeRepelStrength / (dist * dist);
-        xVel += force * dt;*/
     }
-
     // Right wall
     if (xPos > screenWidth) {
         xPos = screenWidth / 2.0f;
         yPos = screenHeight / 1.2f;
-        /*
-        float dist = std::max(screenWidth - xPos, 1.0f);
-        float force = edgeRepelStrength / (dist * dist);
-        xVel -= force * dt;*/
     }
 
     // Top wall
@@ -43,43 +72,100 @@ void Particle::update(float dt) {
         yPos = screenHeight / 1.2f;
         yVel = 0.0;
         xPos += randRange(-10, 10);
-        /*
-        float dist = std::max(yPos, 1.0f);
-        float force = edgeRepelStrength / (dist * dist);
-        yVel += force * dt;*/
     }
 
     // Bottom wall
     if (yPos > screenHeight) {
         xPos = screenWidth / 2.0f;
         yPos = screenHeight / 1.2f;
-        //yVel *= 0.90;
-        //float dist = std::max(screenHeight - yPos, 1.0f);
-        //float force = edgeRepelStrength / (dist * dist);
-        //yVel -= force * dt;
+    }
+    // Apply gravity
+    yVel += gravity * dt;
+    xVel += randRange(-6, 6) / mass;
+    yVel += randRange(-2, 2) / mass; 
+    velocityUpdate(dt);
+}
+
+void Particle::wallUpdate(float dt) {
+    // --- Edge repulsion parameters ---
+    float edgeRepelStrength = 800.0f;   // how strong the wall pushes
+    float edgeThreshold = 5.0f;       // how close before repelling starts
+
+    // Left wall
+    if (xPos < 0) {
+        float dist = std::max(xPos, 1.0f);
+        float force = edgeRepelStrength / (dist * dist);
+        xVel += force * dt;
+    }
+    // Right wall
+    if (xPos > screenWidth) {
+        float dist = std::max(screenWidth - xPos, 1.0f);
+        float force = edgeRepelStrength / (dist * dist);
+        xVel -= force * dt;
+    }
+    // Top wall
+    if (yPos < 0) {
+        float dist = std::max(yPos, 1.0f);
+        float force = edgeRepelStrength / (dist * dist);
+        yVel += force * dt;
+    }
+    // Bottom wall
+    if (yPos > screenHeight) {
+        float dist = std::max(screenHeight - yPos, 1.0f);
+        float force = edgeRepelStrength / (dist * dist);
+        yVel -= force * dt;
     }
 
     // Apply gravity
     yVel += gravity * dt;
 
-    xVel += randRange(-6, 6) / mass;
-    yVel += randRange(-2, 2) / mass;
+    xVel += randRange(-1, 1) / mass;
+    yVel += randRange(-1, 1) / mass;
+    
+    velocityUpdate(dt);
+}
 
-    // Apply damping for stability
-    float damping = 0.98f;
-    xVel *= damping;
-    yVel *= damping;
+void Particle::wrapUpdate(float dt) {
 
-    float maxVelocity = 500.0f;
-    // clamping max velocity
-    if (xVel > maxVelocity)       xVel = maxVelocity;
-    else if (xVel < -maxVelocity) xVel = -maxVelocity;
-    if (yVel > maxVelocity)       yVel = maxVelocity;
-    else if (yVel < -maxVelocity) yVel = -maxVelocity;
+}
 
-    // Update position using velocity
-    xPos += xVel * dt;
-    yPos += yVel * dt;
+void Particle::waterUpdate(float dt) {
+    // --- Edge repulsion parameters ---
+    float edgeRepelStrength = 800.0f;   // how strong the wall pushes
+    float edgeThreshold = 5.0f;       // how close before repelling starts
+
+    // Left wall
+    if (xPos < 0) {
+        float dist = std::max(xPos, 1.0f);
+        float force = edgeRepelStrength / (dist * dist);
+        xVel += force * dt;
+    }
+    // Right wall
+    if (xPos > screenWidth) {
+        xPos = 5;
+        yPos = 5;
+    }
+    // Top wall
+    if (yPos < 0) {
+        float dist = std::max(yPos, 1.0f);
+        float force = edgeRepelStrength / (dist * dist);
+        yVel += force * dt;
+    }
+    // Bottom wall
+    if (yPos > screenHeight) {
+        float dist = std::max(screenHeight - yPos, 1.0f);
+        float force = edgeRepelStrength / (dist * dist);
+        yVel -= force * dt;
+    }
+
+    // Apply gravity
+    yVel += gravity * dt;
+
+    xVel += randRange(-1, 1) / mass;
+    yVel += randRange(-1, 1) / mass;
+    
+    velocityUpdate(dt);
+
 }
 
 /*

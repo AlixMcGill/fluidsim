@@ -5,6 +5,7 @@
 #include <vector>
 #include "rlgl.h"
 #include "particle.h"
+#include "util/globals.h"
 
 int main(void) {
 
@@ -16,15 +17,16 @@ int main(void) {
 
     // Initialize particles
     for (int i = 0; i < particleNum; i++) {
+        particles[i].updateSelector(collmode);
         particles[i].xPos = randRange(0, screenWidth);
         particles[i].yPos = randRange(0, screenHeight);
         
         if (i < 0) particles[i].mass = 1;
-        else particles[i].mass = randRange(1, 8);
+        else particles[i].mass = randRange(1, 1);
     }
 
     // -- Shader stuff
-    Shader shader = LoadShader(NULL, "/home/alix/dev/fluidsim/src/shaders/fireShader.fs");
+    Shader shader = LoadShader(NULL, "/home/alix/dev/fluidsim/src/shaders/water.fs");
 
     int resolutionLoc = GetShaderLocation(shader, "u_resolution");
     int pointCountLoc = GetShaderLocation(shader, "u_pointCount");
