@@ -14,7 +14,7 @@ public:
    int pointCountLoc;
    int resolutionLoc;
    int texLoc;
-   bool pGrav = false; // particle to particle gravity
+   bool pGrav = true; // particle to particle gravity
 
    ParticleSim();
    ~ParticleSim();

@@ -126,6 +126,30 @@ void Particle::wallUpdate(float dt) {
 }
 
 void Particle::wrapUpdate(float dt) {
+    // Left wall
+    if (xPos < 0) {
+        xPos = screenWidth;
+    }
+    // Right wall
+    if (xPos > screenWidth) {
+        xPos = 0;
+    }
+    // Top wall
+    if (yPos < 0) {
+        yPos = screenHeight;
+    }
+    // Bottom wall
+    if (yPos > screenHeight) {
+        yPos = 0; 
+    }
+
+    // Apply gravity
+    yVel += gravity * dt;
+
+    xVel += randRange(-1, 1) / mass;
+    yVel += randRange(-1, 1) / mass;
+    
+    velocityUpdate(dt);
 
 }
 

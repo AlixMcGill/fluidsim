@@ -27,7 +27,7 @@ void ParticleSim::update(float dt, const Vector2 &mousePos) {
 
     // --- Init quadtree ---
     
-    Quadtree qt(0,0, screenWidth, screenHeight, 8);
+    Quadtree qt(0,0, screenWidth, screenHeight, 2);
 
     for (int i = 0; i < particleNum; i++) {
         qt.insert(&particles[i]);
@@ -35,8 +35,11 @@ void ParticleSim::update(float dt, const Vector2 &mousePos) {
 
 
     // --- Particle interactions ---
-
+    std::vector<Vector2> velocityDelta(particleNum, {0,0});
+    
+    #pragma omp parallel for
     for (int i = 0; i < particleNum; i++) {
+        Vector2 delta = {0,0};
         std::vector<Particle*> neighbors;
         qt.query(particles[i].xPos, particles[i].yPos, 50.0f, neighbors);
 
@@ -59,20 +62,20 @@ void ParticleSim::update(float dt, const Vector2 &mousePos) {
                     float force = G * (particles[i].mass * other->mass) / (distance * distance);
 
                     // Apply to velocities (i attracts j and vice versa)
-                    particles[i].xVel += nx * force * dt;
-                    particles[i].yVel += ny * force * dt;
-                    other->xVel -= nx * force * dt;
-                    other->yVel -= ny * force * dt;
+                    delta.x += nx * force * dt;
+                    delta.y += ny * force * dt;
+                    //other->xVel -= nx * force * dt;
+                    //other->yVel -= ny * force * dt;
                 }
                 
                 // Soft repulsion (velocity-based) 
                 
                 if (distance < particleSeperation) { 
                     float strength = (repelStrength / particles[i].mass) / (distance + 1.0f); 
-                    particles[i].xVel -= nx * strength * dt; 
-                    particles[i].yVel -= ny * strength * dt; 
-                    other->xVel += nx * strength * dt; 
-                    other->yVel += ny * strength * dt; 
+                    delta.x -= nx * strength * dt; 
+                    delta.y -= ny * strength * dt; 
+                    /*other->xVel += nx * strength * dt; 
+                    other->yVel += ny * strength * dt; */
                 }
 
                 // Particle hard collision
@@ -108,12 +111,12 @@ void ParticleSim::update(float dt, const Vector2 &mousePos) {
 
             // Apply to velocities (i attracts j and vice versa)
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-                particles[i].xVel -= dxm * force * dt;
-                particles[i].yVel -= dym * force * dt;
+                delta.x -= dxm * force * dt;
+                delta.y -= dym * force * dt;
             }
             if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-                particles[i].xVel += dxm * force * dt;
-                particles[i].yVel += dym * force * dt;
+                delta.x += dxm * force * dt;
+                delta.y += dym * force * dt;
             }
             if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
                 // Collision normal
@@ -135,18 +138,17 @@ void ParticleSim::update(float dt, const Vector2 &mousePos) {
                 particles[i].yVel *= 0.8f;
             }
         }
-        // Update Particle Positions and pixelData;
-        // Might need to move this back outside the loop if oddities arise but would be 
-        // more efficent this way loop once rather than twice for no reason
-        particles[i].update(dt);
-        pixelData[i] = {particles[i].xPos, particles[i].yPos, particles[i].size};
+
+        velocityDelta[i] = delta;
     }
 
     // Update Particle Positions and pixelData;
-    /*for (int i = 0; i < particleNum; i++) {
+    for (int i = 0; i < particleNum; i++) {
+        particles[i].xVel += velocityDelta[i].x;
+        particles[i].yVel += velocityDelta[i].y;
         particles[i].update(dt);
         pixelData[i] = {particles[i].xPos, particles[i].yPos, particles[i].size};
-    }*/
+    }
 
     // sends pixel data to gpu
     UpdateTexture(particleDataTex, pixelData.data());
@@ -173,7 +175,7 @@ void ParticleSim::initParticles() {
         particles[i].updateSelector(collmode); // check collision mode pointer
         particles[i].xPos = randRange(0, screenWidth);
         particles[i].yPos = randRange(0, screenHeight);
-        particles[i].mass = randRange(1, 4);
+        particles[i].mass = randRange(2, 2);
     }
 }
 
@@ -184,7 +186,7 @@ void ParticleSim::initParticles() {
 void ParticleSim::initShader() {
     pixelData.resize(particleNum);
 
-    shader = LoadShader(NULL, "/home/alix/dev/fluidsim/src/shaders/water.fs");
+    shader = LoadShader(NULL, "/home/alix/dev/fluidsim/src/shaders/blueSmoke.fs");
     resolutionLoc = GetShaderLocation(shader, "u_resolution");
     pointCountLoc = GetShaderLocation(shader, "u_pointCount");
     texLoc = GetShaderLocation(shader, "u_particleTex");

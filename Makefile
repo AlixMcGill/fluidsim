@@ -1,5 +1,5 @@
 CXX := g++
-CXXFLAGS := -Wall -std=c++17 -Isrc
+CXXFLAGS := -fopenmp -Wall -std=c++17 -Isrc
 
 SRC_DIR := src
 BUILD_DIR := build
