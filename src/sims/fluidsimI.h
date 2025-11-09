@@ -3,8 +3,8 @@
 
 struct FluidSimI {
 public:
-    virtual ~FluidSimI() = default;
+    virtual ~FluidSimI();
     virtual void init() = 0;
-    virtual void update(float dt, const Vector2 &mousePos);
+    virtual void update(float dt, const Vector2 &mousePos) = 0;
     virtual void draw() = 0;
 };
