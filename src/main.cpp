@@ -21,7 +21,7 @@ int main(void) {
         particles[i].xPos = randRange(0, screenWidth);
         particles[i].yPos = randRange(0, screenHeight);
         
-        if (i < 0) particles[i].mass = 1;
+        if (i < 0) particles[i].mass = 1; // your actually stupid sometimes why would the index ever be negative you would seg fault lmao
         else particles[i].mass = randRange(1, 1);
     }
 
@@ -50,7 +50,7 @@ int main(void) {
 
         BeginDrawing();
         ClearBackground(BLACK);
-        DrawFPS(10, 10);
+        DrawRectangle(0, 0, screenWidth, screenHeight, WHITE); // Do not remove Primes frame buffer for raylib
 
         // --- Init quadtree ---
         
@@ -178,6 +178,8 @@ int main(void) {
         BeginShaderMode(shader);
             DrawRectangle(0, 0, screenWidth, screenHeight, WHITE);
         EndShaderMode();
+
+        DrawFPS(10, 10);
 
         EndDrawing();
     }
